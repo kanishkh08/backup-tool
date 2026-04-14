@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GitVault — File Backup Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & Variables ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0c10;
+  --bg2:       #0f1218;
+  --bg3:       #151a22;
+  --border:    #1e2530;
+  --border2:   #252d3a;
+  --accent:    #00d4ff;
+  --accent2:   #0099bb;
+  --green:     #00e676;
+  --green2:    #00c853;
+  --orange:    #ff9800;
+  --red:       #ff4444;
+  --text:      #e8edf5;
+  --text2:     #8899aa;
+  --text3:     #4a5568;
+  --card:      #111620;
+  --glow:      0 0 20px rgba(0,212,255,.15);
+  --glow-g:    0 0 20px rgba(0,230,118,.15);
+  --radius:    12px;
+  --radius-sm: 8px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Sora', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.app { display: flex; min-height: 100vh; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 240px; flex-shrink: 0;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.brand { padding: 28px 24px 20px; border-bottom: 1px solid var(--border); }
+.brand-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent), #006688);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 12px;
+}
+.brand-name { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.5px; }
+.brand-sub  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+.nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--text2);
+  transition: all .2s; border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: rgba(0,212,255,.1); color: var(--accent); }
+
+.nav-section {
+  font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text3);
+  text-transform: uppercase; padding: 16px 12px 6px;
+}
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+.status-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); margin-right: 6px; animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot { 0%,100%{ opacity:1; } 50%{ opacity:.4; } }
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 0 28px; height: 60px;
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.page-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.page-sub   { font-size: 12px; color: var(--text2); }
+
+.dir-input-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 6px 12px;
+  flex: 1; max-width: 380px;
+}
+.dir-input-wrap span { font-size: 13px; color: var(--text2); }
+#dirInput {
+  background: none; border: none; outline: none;
+  font-family: 'Space Mono', monospace; font-size: 12px; color: var(--text);
+  flex: 1; min-width: 0;
+}
+#dirInput::placeholder { color: var(--text3); }
+
+.btn-load {
+  background: var(--accent); color: #000;
+  border: none; border-radius: var(--radius-sm);
+  padding: 7px 16px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all .2s; font-family: 'Space Mono', monospace;
+}
+.btn-load:hover { background: #33ddff; transform: translateY(-1px); }
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+.content { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 24px; }
+.panel { display: none; flex-direction: column; gap: 24px; }
+.panel.active { display: flex; }
+
+/* ── Stat Cards ──────────────────────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  position: relative; overflow: hidden; transition: border-color .2s;
+}
+.stat-card:hover { border-color: var(--border2); }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat-card.blue::before  { background: linear-gradient(90deg, var(--accent), transparent); }
+.stat-card.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+.stat-card.orange::before{ background: linear-gradient(90deg, var(--orange), transparent); }
+.stat-card.purple::before{ background: linear-gradient(90deg, #b06aff, transparent); }
+
+
+
+.stat-value { font-size: 28px; font-weight: 700; font-family: 'Space Mono', monospace; line-height: 1; }
+.stat-value.blue   { color: var(--accent); }
+.stat-value.green  { color: var(--green); }
+.stat-value.orange { color: var(--orange); }
+.stat-value.purple { color: #b06aff; }
+
+.stat-label { font-size: 12px; color: var(--text2); margin-top: 6px; }
+.stat-sub   { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: 'Space Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+.card-header {
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+.card-body { padding: 20px; }
+
+.two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+/* ── Status items ────────────────────────────────────────────────────────── */
+.status-grid { display: flex; flex-direction: column; gap: 10px; }
+.status-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; background: var(--bg3);
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.status-row-left { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; font-family: 'Space Mono', monospace; letter-spacing: .5px; }
+.badge-green  { background: rgba(0,230,118,.15);  color: var(--green); }
+.badge-blue   { background: rgba(0,212,255,.15);  color: var(--accent); }
+.badge-orange { background: rgba(255,152,0,.15);  color: var(--orange); }
+.badge-red    { background: rgba(255,68,68,.15);  color: var(--red); }
+.badge-grey   { background: rgba(136,153,170,.1); color: var(--text2); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .2s; font-family: 'Sora', sans-serif; }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+.btn-primary { background: var(--accent); color: #000; box-shadow: var(--glow); }
+.btn-primary:hover:not(:disabled) { background: #33ddff; transform: translateY(-1px); }
+.btn-success { background: var(--green); color: #000; box-shadow: var(--glow-g); }
+.btn-success:hover:not(:disabled) { background: #33ff99; transform: translateY(-1px); }
+.btn-danger  { background: rgba(255,68,68,.15); color: var(--red); border: 1px solid rgba(255,68,68,.3); }
+.btn-danger:hover:not(:disabled)  { background: rgba(255,68,68,.25); transform: translateY(-1px); }
+.btn-ghost   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover:not(:disabled)   { background: var(--border2); color: var(--text); }
+.btn-sm { padding: 6px 13px; font-size: 12px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Form elements ───────────────────────────────────────────────────────── */
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; }
+.form-input, .form-select {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  color: var(--text); font-size: 13.5px; font-family: 'Sora', sans-serif;
+  outline: none; transition: border-color .2s;
+}
+.form-input:focus, .form-select:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text3); }
+.form-select option { background: var(--bg3); }
+
+/* ── Log table ───────────────────────────────────────────────────────────── */
+.log-table { width: 100%; border-collapse: collapse; }
+.log-table th { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+.log-table td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.log-table tr:last-child td { border-bottom: none; }
+.log-table tr:hover td { background: var(--bg3); }
+.hash-tag {
+  font-family: 'Space Mono', monospace; font-size: 11px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  padding: 3px 7px; border-radius: 4px; color: var(--accent); cursor: pointer;
+}
+.hash-tag:hover { background: rgba(0,212,255,.1); }
+.msg-auto   { color: var(--text2); }
+.msg-manual { color: var(--green); }
+
+/* ── Watch panel ─────────────────────────────────────────────────────────── */
+.watch-status {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--bg3); margin-bottom: 16px;
+}
+.watch-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--text3); }
+.watch-indicator.active { background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse-dot 1.5s infinite; }
+.watch-info { flex: 1; }
+.watch-info-title { font-size: 13px; font-weight: 600; }
+.watch-info-sub   { font-size: 11.5px; color: var(--text2); margin-top: 2px; font-family: 'Space Mono', monospace; }
+
+/* ── Files list ──────────────────────────────────────────────────────────── */
+.files-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.file-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: var(--bg3); border-radius: var(--radius-sm); border: 1px solid var(--border);
+  font-size: 12.5px; font-family: 'Space Mono', monospace;
+}
+.file-status { font-size: 10px; font-weight: 700; width: 20px; text-align: center; }
+.file-status.M { color: var(--orange); }
+.file-status.A { color: var(--green); }
+.file-status.D { color: var(--red); }
+.file-status.untracked { color: var(--accent); }
+.file-name { color: var(--text); flex: 1; }
+
+/* ── Terminal ────────────────────────────────────────────────────────────── */
+.terminal {
+  background: #06080c; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; font-family: 'Space Mono', monospace;
+  font-size: 12px; line-height: 1.7; max-height: 200px; overflow-y: auto; color: var(--text2);
+}
+.terminal .t-success { color: var(--green); }
+.terminal .t-error   { color: var(--red); }
+.terminal .t-info    { color: var(--accent); }
+.terminal .t-dim     { color: var(--text3); }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+.toast { padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; animation: slide-in .3s ease; min-width: 240px; }
+.toast-success { background: rgba(0,230,118,.15); border: 1px solid rgba(0,230,118,.4); color: var(--green); }
+.toast-error   { background: rgba(255,68,68,.15);  border: 1px solid rgba(255,68,68,.4);  color: var(--red); }
+.toast-info    { background: rgba(0,212,255,.12);  border: 1px solid rgba(0,212,255,.4);  color: var(--accent); }
+@keyframes slide-in { from { opacity:0; transform: translateX(30px); } to { opacity:1; transform: translateX(0); } }
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text3); }
+.empty-state .e-icon  { font-size: 36px; margin-bottom: 12px; }
+.empty-state .e-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.empty-state .e-sub   { font-size: 12px; }
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.spinner { width: 16px; height: 16px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 28px; max-width: 420px; width: 90%; }
+.modal-title  { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.modal-body   { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.6; }
+.modal-hash   { font-family: 'Space Mono', monospace; color: var(--accent); background: var(--bg3); padding: 4px 8px; border-radius: 4px; }
+.modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 900px)  { .two-col, .three-col { grid-template-columns: 1fr; } .sidebar { width: 200px; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">V</div>
+      <div class="brand-name">GitVault</div>
+      <div class="brand-sub">File Backup Dashboard</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Main</div>
+      <button class="nav-item active" data-panel="dashboard" onclick="switchPanel('dashboard', this)">Dashboard</button>
+      <button class="nav-item" data-panel="backup" onclick="switchPanel('backup', this)">Manual Backup</button>
+      <button class="nav-item" data-panel="watch" onclick="switchPanel('watch', this)">Auto Watch</button>
+      <div class="nav-section">History</div>
+      <button class="nav-item" data-panel="history" onclick="switchPanel('history', this)">Backup Log</button>
+      <button class="nav-item" data-panel="restore" onclick="switchPanel('restore', this)">Restore</button>
+      <div class="nav-section">Info</div>
+      <button class="nav-item" data-panel="status" onclick="switchPanel('status', this)">File Status</button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>API Connected
+      <br/><span style="color:var(--text3);font-size:10px;margin-top:4px;display:block;">Git Backup Tool v2.0</span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div>
+          <div class="page-title" id="pageTitle">Dashboard</div>
+          <div class="page-sub"  id="pageSub">Overview of your backup activity</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="dir-input-wrap">
+          <span>/</span>
+          <input id="dirInput" type="text" placeholder="Enter directory path to backup…"/>
+        </div>
+        <button class="btn-load" onclick="loadDirectory()">LOAD</button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- Dashboard -->
+      <section id="panel-dashboard" class="panel active">
+        <div class="stat-grid">
+          <div class="stat-card blue">
+            <div class="stat-value blue" id="statTotal">—</div>
+            <div class="stat-label">Total Backups</div>
+            <div class="stat-sub" id="statLastMsg">Load a directory first</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-value green" id="statToday">—</div>
+            <div class="stat-label">Today's Backups</div>
+            <div class="stat-sub" id="statDate">—</div>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-value orange" style="font-size:16px;padding-top:6px" id="statLastTime">—</div>
+            <div class="stat-label">Last Backup</div>
+            <div class="stat-sub" id="statPath">No directory loaded</div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-value purple" id="statWatchStatus">OFF</div>
+            <div class="stat-label">Auto-Watch</div>
+            <div class="stat-sub" id="statWatchInfo">Not running</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Quick Actions</div></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn btn-success" onclick="quickBackup()" id="btnQuickBackup">Backup Now</button>
+                <button class="btn btn-primary" onclick="switchPanel('watch', document.querySelector('[data-panel=watch]'))">Start Auto Watch</button>
+                <button class="btn btn-ghost"   onclick="switchPanel('history', document.querySelector('[data-panel=history]'))">View Backup Log</button>
+                <button class="btn btn-ghost"   onclick="switchPanel('restore', document.querySelector('[data-panel=restore]'))">Restore a Backup</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent Backups</div>
+              <button class="btn btn-ghost btn-sm" onclick="switchPanel('history', document.querySelector('[data-panel=history]'))">View All</button>
+            </div>
+            <div class="card-body" style="padding:0">
+              <div id="recentList">
+                <div class="empty-state"><div class="e-title">No backups yet</div><div class="e-sub">Load a directory to begin</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Activity Log</div>
+            <button class="btn btn-ghost btn-sm" onclick="clearTerminal()">Clear</button>
+          </div>
+          <div class="card-body" style="padding:12px 14px">
+            <div class="terminal" id="terminal"><span class="t-dim">// GitVault ready. Load a directory to start.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Manual Backup -->
+      <section id="panel-backup" class="panel">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Manual Backup</div></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Target Directory</label>
+                <input class="form-input" id="backupPath" type="text" placeholder="C:\Users\Name\Documents or /home/user/docs" readonly/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Commit Message (optional)</label>
+                <input class="form-input" id="backupMsg" type="text" placeholder="e.g. Saved project files before edit"/>
+              </div>
+              <button class="btn btn-success" onclick="runManualBackup()" id="btnManBackup" style="width:100%">Create Backup</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Backup Result</div></div>
+            <div class="card-body" style="padding:12px 14px;">
+              <div class="terminal" id="backupTerminal" style="min-height:160px"><span class="t-dim">// Backup output will appear here…</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">How Manual Backup Works</div></div>
+          <div class="card-body">
+            <div class="three-col">
+              <div style="text-align:center;padding:16px">
+                
+                <div style="font-size:13px;font-weight:600;margin-bottom:6px">Check Changes</div>
+                <div style="font-size:12px;color:var(--text2)">Scans the directory for new, modified or deleted files using <code style="color:var(--accent)">git status</code></div>
+              </div>
+              <div style="text-align:center;padding:16px">
+                
+                <div style="font-size:13px;font-weight:600;margin-bottom:6px">Stage Files</div>
+                <div style="font-size:12px;color:var(--text2)">All detected changes are staged with <code style="color:var(--accent)">git add -A</code></div>
+              </div>
+              <div style="text-align:center;padding:16px">
+                
+                <div style="font-size:13px;font-weight:600;margin-bottom:6px">Commit Snapshot</div>
+                <div style="font-size:12px;color:var(--text2)">A timestamped commit is created as your permanent backup snapshot</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Auto Watch -->
+      <section id="panel-watch" class="panel">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Auto Watch Configuration</div></div>
+            <div class="card-body">
+              <div class="watch-status" id="watchStatusBar">
+                <div class="watch-indicator" id="watchIndicator"></div>
+                <div class="watch-info">
+                  <div class="watch-info-title" id="watchStatusTitle">Not Running</div>
+                  <div class="watch-info-sub"   id="watchStatusSub">Start watching to auto-backup on changes</div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Watch Directory</label>
+                <input class="form-input" id="watchPath" type="text" placeholder="Directory path" readonly/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Check Interval</label>
+                <select class="form-select" id="watchInterval">
+                  <option value="10">Every 10 seconds</option>
+                  <option value="30">Every 30 seconds</option>
+                  <option value="60" selected>Every 1 minute</option>
+                  <option value="300">Every 5 minutes</option>
+                  <option value="600">Every 10 minutes</option>
+                </select>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-success" onclick="startWatch()" id="btnStartWatch" style="flex:1">Start Watching</button>
+                <button class="btn btn-danger"  onclick="stopWatch()"  id="btnStopWatch"  style="flex:1" disabled>Stop</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Watch Activity</div></div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
+                  <div style="font-size:24px;font-weight:700;font-family:'Space Mono',monospace;color:var(--accent)" id="watchCommitCount">0</div>
+                  <div style="font-size:11px;color:var(--text2);margin-top:4px">Auto Commits</div>
+                </div>
+                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
+                  <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--green)" id="watchLastCheck">—</div>
+                  <div style="font-size:11px;color:var(--text2);margin-top:4px">Last Check</div>
+                </div>
+              </div>
+              <div class="terminal" id="watchTerminal" style="min-height:160px"><span class="t-dim">// Watch output will appear here…</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section id="panel-history" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Backup History</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select class="form-select" id="logCount" style="padding:5px 10px;font-size:12px">
+                <option value="10">Last 10</option>
+                <option value="20" selected>Last 20</option>
+                <option value="50">Last 50</option>
+                <option value="100">Last 100</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="loadHistory()">Refresh</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;overflow-x:auto">
+            <div id="historyContent">
+              <div class="empty-state"><div class="e-title">No history yet</div><div class="e-sub">Load a directory and run a backup first</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Restore -->
+      <section id="panel-restore" class="panel">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Restore a Backup</div></div>
+            <div class="card-body">
+              <div style="background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.25);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:var(--orange);line-height:1.6">
+                [!] Restoring will roll back your directory to the selected backup state. Your current files will be replaced.
+              </div>
+              <div class="form-group">
+                <label class="form-label">Commit Hash to Restore</label>
+                <input class="form-input" id="restoreHash" type="text" placeholder="Paste commit hash (e.g. a3f9c12)" style="font-family:'Space Mono',monospace"/>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-danger" onclick="confirmRestore()" style="flex:1">Restore to This Backup</button>
+                <button class="btn btn-ghost"  onclick="restoreLatest()" style="flex:1">Return to Latest</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Select from History</div></div>
+            <div class="card-body" style="padding:0;max-height:360px;overflow-y:auto">
+              <div id="restoreHistoryList">
+                <div class="empty-state"><div class="e-title">No backups</div><div class="e-sub">Load a directory first</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status -->
+      <section id="panel-status" class="panel">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Git Status</div>
+              <button class="btn btn-ghost btn-sm" onclick="refreshStatus()">Refresh</button>
+            </div>
+            <div class="card-body">
+              <div class="status-grid" id="statusSummary">
+                <div class="empty-state"><div class="e-title">No directory loaded</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Changed Files</div>
+              <span id="fileCount" style="font-size:11px;color:var(--text2)"></span>
+            </div>
+            <div class="card-body" style="padding:12px">
+              <div class="files-list" id="filesList">
+                <div class="empty-state"><div class="e-title">No changes detected</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div class="modal-overlay" id="restoreModal">
+  <div class="modal">
+    <div class="modal-title">[!] Confirm Restore</div>
+    <div class="modal-body">
+      You are about to restore your directory to commit:<br/><br/>
+      <span class="modal-hash" id="modalHash"></span><br/><br/>
+      This will replace your current files. Make sure you have a recent backup.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost"  onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="executeRestore()">Yes, Restore</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let currentDir    = '';
+let watchInterval = null;
+let pendingHash   = '';
+
+// ── Navigation ────────────────────────────────────────────────────────────
+const PAGE_META = {
+  dashboard: ['Dashboard',     'Overview of your backup activity'],
+  backup:    ['Manual Backup', 'Create a single backup commit on demand'],
+  watch:     ['Auto Watch',    'Automatically backup when files change'],
+  history:   ['Backup Log',    'Full history of all your backup commits'],
+  restore:   ['Restore',       'Roll back your files to any previous backup'],
+  status:    ['File Status',   'See current Git status of your directory'],
+};
+
+function switchPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  const [title, sub] = PAGE_META[name] || [name, ''];
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('pageSub').textContent   = sub;
+  if (name === 'history')   loadHistory();
+  if (name === 'status')    refreshStatus();
+  if (name === 'restore')   loadRestoreList();
+  if (name === 'dashboard' && currentDir) refreshDashboard();
+}
+
+// ── API helper ────────────────────────────────────────────────────────────
+async function api(endpoint, body = {}) {
+  try {
+    const r = await fetch('/api/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return await r.json();
+  } catch (e) {
+    return { error: 'API error: ' + e.message };
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  const icons = { success: '+', error: '!', info: 'i' };
+  el.innerHTML = `<span>${icons[type] || 'i'}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Terminal ──────────────────────────────────────────────────────────────
+function log(msg, type = 'dim', termId = 'terminal') {
+  const t  = document.getElementById(termId);
+  const ts = new Date().toLocaleTimeString();
+  t.innerHTML += `\n<span class="t-${type}">[${ts}] ${msg}</span>`;
+  t.scrollTop = t.scrollHeight;
+}
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML = '<span class="t-dim">// Cleared.</span>';
+}
+
+// ── Load directory ────────────────────────────────────────────────────────
+async function loadDirectory() {
+  const path = document.getElementById('dirInput').value.trim();
+  if (!path) { toast('Enter a directory path first', 'error'); return; }
+  const res = await api('init', { path });
+  if (res.error) { toast(res.error, 'error'); log(res.error, 'error'); return; }
+  currentDir = path;
+  document.getElementById('backupPath').value = path;
+  document.getElementById('watchPath').value  = path;
+  toast(`Directory loaded: ${path}`, 'success');
+  log(`Directory loaded: ${path}`, 'info');
+  log(`Git repo: ${res.repo === 'initialized' ? 'Initialized new repository' : 'Existing repository found'}`, 'success');
+  refreshDashboard();
+  refreshStatus();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function refreshDashboard() {
+  if (!currentDir) return;
+  const [stats, log5] = await Promise.all([
+    api('stats', { path: currentDir }),
+    api('log',   { path: currentDir, count: 5 }),
+  ]);
+  if (!stats.error) {
+    document.getElementById('statTotal').textContent    = stats.total_backups ?? '—';
+    document.getElementById('statToday').textContent    = stats.today_backups ?? '—';
+    document.getElementById('statLastTime').textContent = stats.last_backup   ?? '—';
+    document.getElementById('statLastMsg').textContent  = stats.last_message  ?? '—';
+    document.getElementById('statPath').textContent     = currentDir;
+    document.getElementById('statDate').textContent     = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
+  }
+  const ws = await api('watch/status', { path: currentDir });
+  document.getElementById('statWatchStatus').textContent = ws.running ? 'ON' : 'OFF';
+  document.getElementById('statWatchInfo').textContent   = ws.running ? `Checking every ${document.getElementById('watchInterval').value}s` : 'Not running';
+
+  const commits = log5.commits || [];
+  const rl = document.getElementById('recentList');
+  if (!commits.length) {
+    rl.innerHTML = '<div class="empty-state"><div class="e-title">No backups yet</div></div>';
+  } else {
+    rl.innerHTML = commits.map(c => `
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border)">
+        <span class="hash-tag" onclick="selectHash('${c.hash}')">${c.short}</span>
+        <span style="flex:1;font-size:12.5px;${c.message.includes('AUTO') ? 'color:var(--text2)' : 'color:var(--green)'}">${c.message}</span>
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap">${c.date}</span>
+      </div>`).join('');
+  }
+}
+
+async function quickBackup() {
+  if (!currentDir) { toast('Load a directory first', 'error'); return; }
+  const btn = document.getElementById('btnQuickBackup');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Backing up…';
+  const res = await api('backup', { path: currentDir });
+  btn.disabled = false; btn.innerHTML = 'Backup Now';
+  if (res.error)    { toast(res.error,   'error'); log(res.error, 'error'); return; }
+  if (!res.success) { toast(res.message, 'info');  log(res.message, 'dim'); return; }
+  toast('Backup created!', 'success');
+  log(`Backup: ${res.committed_message}`, 'success');
+  refreshDashboard();
+}
+
+// ── Manual backup ─────────────────────────────────────────────────────────
+async function runManualBackup() {
+  const path = document.getElementById('backupPath').value.trim() || currentDir;
+  const msg  = document.getElementById('backupMsg').value.trim();
+  if (!path) { toast('Load a directory first', 'error'); return; }
+  const btn = document.getElementById('btnManBackup');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating backup…';
+  const t = document.getElementById('backupTerminal');
+  t.innerHTML = '<span class="t-dim">// Running backup…</span>';
+  const res = await api('backup', { path, message: msg });
+  btn.disabled = false; btn.innerHTML = 'Create Backup';
+  if (res.error) {
+    t.innerHTML += `\n<span class="t-error">x ${res.error}</span>`;
+    toast(res.error, 'error'); return;
+  }
+  if (!res.success) {
+    t.innerHTML += `\n<span class="t-dim">i ${res.message}</span>`;
+    toast(res.message, 'info'); return;
+  }
+  t.innerHTML += `\n<span class="t-success">+ Backup created!</span>`;
+  t.innerHTML += `\n<span class="t-info">-> Commit: ${res.committed_message}</span>`;
+  t.innerHTML += `\n<span class="t-dim">${res.output}</span>`;
+  toast('Backup created successfully!', 'success');
+  document.getElementById('backupMsg').value = '';
+  refreshDashboard();
+}
+
+// ── Auto watch ────────────────────────────────────────────────────────────
+async function startWatch() {
+  const path     = document.getElementById('watchPath').value.trim() || currentDir;
+  const interval = document.getElementById('watchInterval').value;
+  if (!path) { toast('Load a directory first', 'error'); return; }
+  const res = await api('watch/start', { path, interval: parseInt(interval) });
+  if (res.error || !res.success) { toast(res.error || res.message, 'error'); return; }
+  toast('Auto-watch started!', 'success');
+  log('Auto-watch started', 'success', 'watchTerminal');
+  document.getElementById('btnStartWatch').disabled = true;
+  document.getElementById('btnStopWatch').disabled  = false;
+  document.getElementById('watchIndicator').classList.add('active');
+  document.getElementById('watchStatusTitle').textContent = 'Watching…';
+  document.getElementById('watchStatusSub').textContent   = `Checking every ${interval}s for changes`;
+  if (watchInterval) clearInterval(watchInterval);
+  watchInterval = setInterval(async () => {
+    const ws = await api('watch/status', { path });
+    if (!ws.running) { stopWatchUI(); clearInterval(watchInterval); return; }
+    document.getElementById('watchCommitCount').textContent = ws.commits    || 0;
+    document.getElementById('watchLastCheck').textContent   = ws.last_check || '—';
+    if (ws.last_commit) log(`Auto backup committed at ${ws.last_commit}`, 'success', 'watchTerminal');
+  }, parseInt(interval) * 1000);
+}
+
+async function stopWatch() {
+  const path = document.getElementById('watchPath').value.trim() || currentDir;
+  await api('watch/stop', { path });
+  stopWatchUI();
+  if (watchInterval) { clearInterval(watchInterval); watchInterval = null; }
+  toast('Auto-watch stopped', 'info');
+  log('Watch stopped by user', 'dim', 'watchTerminal');
+}
+
+function stopWatchUI() {
+  document.getElementById('btnStartWatch').disabled = false;
+  document.getElementById('btnStopWatch').disabled  = true;
+  document.getElementById('watchIndicator').classList.remove('active');
+  document.getElementById('watchStatusTitle').textContent = 'Not Running';
+  document.getElementById('watchStatusSub').textContent   = 'Start watching to auto-backup on changes';
+}
+
+// ── History ───────────────────────────────────────────────────────────────
+async function loadHistory() {
+  if (!currentDir) return;
+  const n      = document.getElementById('logCount').value;
+  const res    = await api('log', { path: currentDir, count: parseInt(n) });
+  const div    = document.getElementById('historyContent');
+  const commits = res.commits || [];
+  if (!commits.length) {
+    div.innerHTML = '<div class="empty-state"><div class="e-title">No backups found</div></div>'; return;
+  }
+  div.innerHTML = `
+    <table class="log-table">
+      <thead><tr><th>Hash</th><th>Message</th><th>Date</th><th>Author</th><th>Action</th></tr></thead>
+      <tbody>
+        ${commits.map(c => `
+          <tr>
+            <td><span class="hash-tag" onclick="selectHash('${c.hash}')" title="Click to use for restore">${c.short}</span></td>
+            <td class="${c.message.includes('AUTO') ? 'msg-auto' : 'msg-manual'}">${c.message}</td>
+            <td style="font-size:12px;color:var(--text2)">${c.date}</td>
+            <td style="font-size:12px;color:var(--text3)">${c.author}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="selectHashForRestore('${c.hash}')">Restore</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── Restore ───────────────────────────────────────────────────────────────
+async function loadRestoreList() {
+  if (!currentDir) return;
+  const res  = await api('log', { path: currentDir, count: 20 });
+  const list = document.getElementById('restoreHistoryList');
+  const commits = res.commits || [];
+  if (!commits.length) {
+    list.innerHTML = '<div class="empty-state"><div class="e-title">No backups</div></div>'; return;
+  }
+  list.innerHTML = commits.map(c => `
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer"
+         onclick="selectHash('${c.hash}')">
+      <span class="hash-tag">${c.short}</span>
+      <span style="flex:1;font-size:12px;color:var(--text2)">${c.message}</span>
+      <span style="font-size:11px;color:var(--text3)">${c.date}</span>
+    </div>`).join('');
+}
+
+function selectHash(hash) {
+  document.getElementById('restoreHash').value = hash;
+  switchPanel('restore', document.querySelector('[data-panel=restore]'));
+}
+function selectHashForRestore(hash) {
+  document.getElementById('restoreHash').value = hash;
+  switchPanel('restore', document.querySelector('[data-panel=restore]'));
+  toast(`Hash ${hash.slice(0,7)} selected for restore`, 'info');
+}
+function confirmRestore() {
+  const hash = document.getElementById('restoreHash').value.trim();
+  if (!hash) { toast('Enter or select a commit hash', 'error'); return; }
+  pendingHash = hash;
+  document.getElementById('modalHash').textContent = hash;
+  document.getElementById('restoreModal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('restoreModal').classList.remove('show');
+  pendingHash = '';
+}
+async function executeRestore() {
+  closeModal();
+  if (!currentDir || !pendingHash) return;
+  const res = await api('restore', { path: currentDir, commit: pendingHash });
+  if (res.error || !res.success) { toast(res.error || res.output, 'error'); return; }
+  toast('Restored to ' + pendingHash.slice(0,7), 'success');
+  log('Restored to commit: ' + pendingHash, 'success');
+  refreshDashboard();
+}
+async function restoreLatest() {
+  if (!currentDir) { toast('Load a directory first', 'error'); return; }
+  const res = await api('restore/latest', { path: currentDir });
+  toast(res.success ? 'Back to latest backup' : 'Could not restore', res.success ? 'success' : 'error');
+  refreshDashboard();
+}
+
+// ── Status ────────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  if (!currentDir) return;
+  const res = await api('status', { path: currentDir });
+  if (res.error) return;
+  document.getElementById('statusSummary').innerHTML = `
+    <div class="status-row"><div class="status-row-left">Git Repository</div><span class="badge ${res.is_repo ? 'badge-green' : 'badge-red'}">${res.is_repo ? 'ACTIVE' : 'NOT FOUND'}</span></div>
+    <div class="status-row"><div class="status-row-left">Working Tree</div><span class="badge ${res.clean ? 'badge-green' : 'badge-orange'}">${res.clean ? 'CLEAN' : 'HAS CHANGES'}</span></div>
+    <div class="status-row"><div class="status-row-left">Added / New Files</div><span class="badge badge-blue">${res.added}</span></div>
+    <div class="status-row"><div class="status-row-left">Modified Files</div><span class="badge badge-orange">${res.modified}</span></div>
+    <div class="status-row"><div class="status-row-left">Deleted Files</div><span class="badge badge-red">${res.deleted}</span></div>
+    <div class="status-row"><div class="status-row-left">Total Changes</div><span class="badge badge-grey">${res.total}</span></div>`;
+  document.getElementById('fileCount').textContent = `${res.total} file(s)`;
+  const fl = document.getElementById('filesList');
+  if (!res.files || !res.files.length) {
+    fl.innerHTML = '<div class="empty-state"><div class="e-title">Working tree clean</div><div class="e-sub">All changes are backed up</div></div>';
+  } else {
+    const icons = { 'M':'*', 'A':'+', 'D':'-', '??':'?' };
+    fl.innerHTML = res.files.map(f => `
+      <div class="file-item">
+        <span class="file-status ${f.status}">${icons[f.status] || f.status}</span>
+        <span class="file-name">${f.file}</span>
+        <span class="badge ${f.status === 'M' ? 'badge-orange' : f.status === 'D' ? 'badge-red' : 'badge-blue'}">${f.status === '??' ? 'NEW' : f.status}</span>
+      </div>`).join('');
+  }
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────
+document.getElementById('dirInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadDirectory(); });
+document.getElementById('restoreModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+</script>
+</body>
+</html>
